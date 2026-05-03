@@ -47,8 +47,8 @@ This project was developed as part of an Operating Systems course to demonstrate
 * Resource allocation
 * Concurrent system design
 
-## Author
+## Authors
 
-Fatma Alsaghir
-Ali Badalov
+Fatma Alsaghir, 
+Ali Badalov, 
 Ayşe Selin Kargı 
