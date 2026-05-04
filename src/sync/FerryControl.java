@@ -18,6 +18,7 @@ public class FerryControl {
     private final int MAX_CAPACITY = 20;
 
     private boolean loading = true;
+    private boolean unloading = false;
 
     // Try to board vehicle
     public void requestBoarding(Vehicle vehicle, WaitingQueue queue) throws InterruptedException {
