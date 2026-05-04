@@ -52,7 +52,7 @@ public class FerryControl {
         lock.lock();
         try {
             while (!shouldDepart(queue)) {
-                ferryReady.await();
+                ferryReady.awaitNanos(1_000_000_000); // ~1 second timeout
             }
             loading = false;
         } finally {
