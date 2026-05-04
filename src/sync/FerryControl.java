@@ -9,7 +9,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class FerryControl {
 
-    private final Lock lock = new ReentrantLock();
+    private final Lock lock = new ReentrantLock(true); // fair lock
 
     private final Condition canBoard = lock.newCondition();
     private final Condition ferryReady = lock.newCondition();
@@ -76,7 +76,29 @@ public class FerryControl {
         try {
             currentLoad = 0;
             loading = true;
-            canBoard.signalAll(); // allow boarding again
+            unloading = false;
+            canBoard.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // Start unloading phase
+    public void startUnloading() {
+        lock.lock();
+        try {
+            unloading = true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // Finish unloading phase
+    public void finishUnloading() {
+        lock.lock();
+        try {
+            unloading = false;
+            canBoard.signalAll();
         } finally {
             lock.unlock();
         }
