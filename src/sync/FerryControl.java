@@ -24,7 +24,7 @@ public class FerryControl {
     public void requestBoarding(Vehicle vehicle, WaitingQueue queue) throws InterruptedException {
         lock.lock();
         try {
-            while (!loading || !canFit(vehicle, queue)) {
+            while (!loading || unloading || !canFit(vehicle, queue)) {
                 canBoard.await();
             }
 
