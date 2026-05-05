@@ -2,6 +2,7 @@ package sync;
 
 import core.WaitingQueue;
 import model.Vehicle;
+import utils.Logger;
 
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -9,7 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class FerryControl {
 
-    private final Lock lock = new ReentrantLock(true); // fair lock (prevents starvation)
+    private final Lock lock = new ReentrantLock(true); // fair lock
 
     private final Condition canBoard = lock.newCondition();   // vehicles wait to board
     private final Condition ferryReady = lock.newCondition(); // ferry waits to depart
@@ -31,6 +32,9 @@ public class FerryControl {
 
             queue.dequeue(); // FIFO queue
             currentLoad += vehicle.getSize();
+
+            // Boarding log
+            Logger.vehicleBoarded(vehicle.toString(), currentLoad);
 
             ferryReady.signal(); // notify ferry thread
 
@@ -101,7 +105,7 @@ public class FerryControl {
         }
     }
 
-    // Read-only getter (do not modify state)
+    // Read-only getter (do not use for control logic)
     public int getCurrentLoad() {
         return currentLoad;
     }
