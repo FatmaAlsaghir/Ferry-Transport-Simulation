@@ -7,6 +7,8 @@ import sync.SyncManager;
 import utils.Logger;
 import utils.Statistics;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 public class FerryThread extends Thread
 {
     private SyncManager syncManager;
@@ -40,7 +42,8 @@ public class FerryThread extends Thread
                 Logger.ferryDeparted(currentSide.name(), currentLoad, tripCount);
                 Statistics.recordTrip(currentLoad);
 
-                Thread.sleep(1000);
+                int tripDelay = 500 + ThreadLocalRandom.current().nextInt(1200);
+                Thread.sleep(tripDelay);
 
                 currentSide = (currentSide == Side.A) ? Side.B : Side.A;
                 Logger.ferryArrived(currentSide.name(), tripCount);
@@ -48,7 +51,8 @@ public class FerryThread extends Thread
                 Logger.ferryUnloadingStarted(currentSide.name());
                 ferryControl.startUnloading();
 
-                Thread.sleep(500);
+                int unloadDelay = 300 + ThreadLocalRandom.current().nextInt(700);
+                Thread.sleep(unloadDelay);
 
                 ferryControl.finishUnloading();
                 Logger.ferryUnloadingFinished(currentSide.name());

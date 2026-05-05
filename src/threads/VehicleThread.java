@@ -9,6 +9,8 @@ import sync.SyncManager;
 import utils.Logger;
 import utils.Statistics;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 public class VehicleThread extends Thread
 {
     private Vehicle vehicle;
@@ -44,7 +46,8 @@ public class VehicleThread extends Thread
 
                 Logger.vehicleEnteredToll(vName, "Toll-1", currentSide.name());
                 chosenToll.enter(this.vehicle);
-                Thread.sleep(100);
+                int tollDelay = 50 + ThreadLocalRandom.current().nextInt(200);
+                Thread.sleep(tollDelay);
                 chosenToll.exit(this.vehicle);
                 Logger.vehicleExitedToll(vName, "Toll-1", currentSide.name());
 
@@ -71,7 +74,8 @@ public class VehicleThread extends Thread
                 else
                 {
                     Logger.vehicleWaiting(vName, otherSide.name());
-                    Thread.sleep(500);
+                    int returnDelay = 300 + ThreadLocalRandom.current().nextInt(700);
+                    Thread.sleep(returnDelay);
                     Logger.vehicleReturning(vName, otherSide.name());
                 }
             }
