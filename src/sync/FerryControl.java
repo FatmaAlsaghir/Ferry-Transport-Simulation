@@ -9,10 +9,10 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class FerryControl {
 
-    private final Lock lock = new ReentrantLock(true); // fair lock
+    private final Lock lock = new ReentrantLock(true); // fair lock (prevents starvation)
 
-    private final Condition canBoard = lock.newCondition();
-    private final Condition ferryReady = lock.newCondition();
+    private final Condition canBoard = lock.newCondition();   // vehicles wait to board
+    private final Condition ferryReady = lock.newCondition(); // ferry waits to depart
 
     private int currentLoad = 0;
     private final int MAX_CAPACITY = 20;
@@ -20,41 +20,39 @@ public class FerryControl {
     private boolean loading = true;
     private boolean unloading = false;
 
-    // Try to board vehicle
+    // Vehicle requests boarding
     public void requestBoarding(Vehicle vehicle, WaitingQueue queue) throws InterruptedException {
         lock.lock();
         try {
+            // Wait until boarding is allowed and vehicle fits
             while (!loading || unloading || !canFit(vehicle, queue)) {
                 canBoard.await();
             }
 
-            // Remove from queue and board
-            queue.dequeue();
+            queue.dequeue(); // FIFO queue
             currentLoad += vehicle.getSize();
 
-            System.out.println(vehicle + " boarded. Current load = " + currentLoad);
-
-            ferryReady.signal(); // notify ferry
+            ferryReady.signal(); // notify ferry thread
 
         } finally {
             lock.unlock();
         }
     }
 
-    // Check if vehicle fits in remaining capacity
+    // Check capacity constraint
     private boolean canFit(Vehicle vehicle, WaitingQueue queue) {
         if (vehicle == null) return false;
         return currentLoad + vehicle.getSize() <= MAX_CAPACITY;
     }
 
-    // Called by ferry thread to wait until ready
+    // Ferry waits until departure conditions are met
     public void waitForDeparture(WaitingQueue queue) throws InterruptedException {
         lock.lock();
         try {
             while (!shouldDepart(queue)) {
-                ferryReady.awaitNanos(1_000_000_000); // ~1 second timeout
+                ferryReady.awaitNanos(1_000_000_000); // timeout avoids starvation
             }
-            loading = false;
+            loading = false; // stop boarding
         } finally {
             lock.unlock();
         }
@@ -63,27 +61,26 @@ public class FerryControl {
     // Departure conditions
     private boolean shouldDepart(WaitingQueue queue) {
         if (currentLoad == MAX_CAPACITY) return true;
-
         if (queue.isEmpty()) return currentLoad > 0;
 
         Vehicle next = queue.peek();
         return next != null && !canFit(next, queue);
     }
 
-    // Reset after trip
+    // Reset ferry for next trip
     public void resetAfterTrip() {
         lock.lock();
         try {
             currentLoad = 0;
             loading = true;
             unloading = false;
-            canBoard.signalAll();
+            canBoard.signalAll(); // allow boarding again
         } finally {
             lock.unlock();
         }
     }
 
-    // Start unloading phase
+    // Start unloading phase (block boarding)
     public void startUnloading() {
         lock.lock();
         try {
@@ -93,7 +90,7 @@ public class FerryControl {
         }
     }
 
-    // Finish unloading phase
+    // Finish unloading (resume boarding)
     public void finishUnloading() {
         lock.lock();
         try {
@@ -102,5 +99,10 @@ public class FerryControl {
         } finally {
             lock.unlock();
         }
+    }
+
+    // Read-only getter (do not modify state)
+    public int getCurrentLoad() {
+        return currentLoad;
     }
 }
