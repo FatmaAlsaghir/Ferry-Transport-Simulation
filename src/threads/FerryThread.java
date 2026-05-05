@@ -34,20 +34,27 @@ public class FerryThread extends Thread
                 WaitingQueue queue = syncManager.getQueue(currentSide);
 
                 Logger.ferryLoadingStarted(currentSide.name());
+
+                // wait until departure conditions are met
                 ferryControl.waitForDeparture(queue);
 
+                // get current load from FerryControl
+                int currentLoad = ferryControl.getCurrentLoad();
+
                 tripCount++;
-                int currentLoad = 0; //ferryControl.getCurrentLoad(); is being awaited to be implemented
 
                 Logger.ferryDeparted(currentSide.name(), currentLoad, tripCount);
                 Statistics.recordTrip(currentLoad);
 
+                // simulate travel
                 int tripDelay = 500 + ThreadLocalRandom.current().nextInt(1200);
                 Thread.sleep(tripDelay);
 
+                // switch side
                 currentSide = (currentSide == Side.A) ? Side.B : Side.A;
                 Logger.ferryArrived(currentSide.name(), tripCount);
 
+                // unloading phase
                 Logger.ferryUnloadingStarted(currentSide.name());
                 ferryControl.startUnloading();
 
@@ -57,6 +64,7 @@ public class FerryThread extends Thread
                 ferryControl.finishUnloading();
                 Logger.ferryUnloadingFinished(currentSide.name());
 
+                // prepare for next trip
                 ferryControl.resetAfterTrip();
             }
         }
