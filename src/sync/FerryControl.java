@@ -12,14 +12,16 @@ public class FerryControl {
 
     private final Lock lock = new ReentrantLock(true); // fair lock
 
-    private final Condition canBoard = lock.newCondition();   // vehicles wait to board
-    private final Condition ferryReady = lock.newCondition(); // ferry waits to depart
+    private final Condition canBoard = lock.newCondition();
+    private final Condition ferryReady = lock.newCondition();
+    private final Condition arrivalCondition = lock.newCondition();
 
     private int currentLoad = 0;
     private final int MAX_CAPACITY = 20;
 
     private boolean loading = true;
     private boolean unloading = false;
+    private boolean arrived = false;
 
     // Vehicle requests boarding
     public void requestBoarding(Vehicle vehicle, WaitingQueue queue) throws InterruptedException {
@@ -65,10 +67,34 @@ public class FerryControl {
     // Departure conditions
     private boolean shouldDepart(WaitingQueue queue) {
         if (currentLoad == MAX_CAPACITY) return true;
+
         if (queue.isEmpty()) return currentLoad > 0;
 
         Vehicle next = queue.peek();
         return next != null && !canFit(next, queue);
+    }
+
+    // Vehicles wait until ferry arrives
+    public void waitForArrival() throws InterruptedException {
+        lock.lock();
+        try {
+            while (!arrived) {
+                arrivalCondition.await();
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // Ferry signals arrival
+    public void signalArrival() {
+        lock.lock();
+        try {
+            arrived = true;
+            arrivalCondition.signalAll();
+        } finally {
+            lock.unlock();
+        }
     }
 
     // Reset ferry for next trip
@@ -78,13 +104,16 @@ public class FerryControl {
             currentLoad = 0;
             loading = true;
             unloading = false;
+            arrived = false;
+
             canBoard.signalAll(); // allow boarding again
+
         } finally {
             lock.unlock();
         }
     }
 
-    // Start unloading phase (block boarding)
+    // Start unloading phase
     public void startUnloading() {
         lock.lock();
         try {
@@ -94,7 +123,7 @@ public class FerryControl {
         }
     }
 
-    // Finish unloading (resume boarding)
+    // Finish unloading phase
     public void finishUnloading() {
         lock.lock();
         try {
@@ -105,7 +134,7 @@ public class FerryControl {
         }
     }
 
-    // Read-only getter (do not use for control logic)
+    // Read-only getter
     public int getCurrentLoad() {
         return currentLoad;
     }

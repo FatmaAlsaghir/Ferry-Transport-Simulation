@@ -41,41 +41,66 @@ public class VehicleThread extends Thread
             while(!roundTripComplete)
             {
                 Side currentSide = vehicle.getCurrentSide();
+
+                // Select toll booth
                 TollBooth[] tolls = syncManager.getTolls(currentSide);
                 TollBooth chosenToll = tolls[0];
 
+                // Pass toll
                 Logger.vehicleEnteredToll(vName, "Toll-1", currentSide.name());
+
                 chosenToll.enter(this.vehicle);
+
                 int tollDelay = 50 + ThreadLocalRandom.current().nextInt(200);
                 Thread.sleep(tollDelay);
+
                 chosenToll.exit(this.vehicle);
+
                 Logger.vehicleExitedToll(vName, "Toll-1", currentSide.name());
 
+                // Join queue
                 WaitingQueue queue = syncManager.getQueue(currentSide);
+
                 Logger.vehicleJoinedQueue(vName, currentSide.name());
+
                 long queueEntryTime = Statistics.recordQueueEntry();
+
                 queue.enqueue(this.vehicle);
 
+                // Request boarding
                 FerryControl ferryControl = syncManager.getFerryControl();
+
                 ferryControl.requestBoarding(this.vehicle, queue);
 
                 Statistics.recordBoarding(queueEntryTime);
 
+                // WAIT until ferry arrives
+                ferryControl.waitForArrival();
+
+                // Switch side after arrival
                 Side otherSide = (currentSide == Side.A) ? Side.B : Side.A;
+
                 vehicle.setCurrentSide(otherSide);
+
                 tripsComplete++;
+
                 Logger.vehicleUnloaded(vName, otherSide.name());
 
+                // Round trip completed
                 if(tripsComplete == 2 && vehicle.getCurrentSide() == originalSide)
                 {
                     roundTripComplete = true;
 
+                    Logger.vehicleCompleted(vName);
                 }
                 else
                 {
                     Logger.vehicleWaiting(vName, otherSide.name());
+
                     int returnDelay = 300 + ThreadLocalRandom.current().nextInt(700);
+
                     Thread.sleep(returnDelay);
+
                     Logger.vehicleReturning(vName, otherSide.name());
                 }
             }
