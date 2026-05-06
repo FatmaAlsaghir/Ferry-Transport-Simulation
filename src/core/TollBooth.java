@@ -7,7 +7,7 @@ import java.util.concurrent.Semaphore;
 public class TollBooth {
 
     private final Semaphore semaphore;
-    private final String name; // for logging later
+    private final String name;
 
     public TollBooth(String name) {
         this.name = name;
@@ -17,12 +17,10 @@ public class TollBooth {
     // Vehicle enters toll
     public void enter(Vehicle vehicle) throws InterruptedException {
         semaphore.acquire(); // lock
-        System.out.println(vehicle + " entered toll " + name);
     }
 
     // Vehicle exits toll
     public void exit(Vehicle vehicle) {
-        System.out.println(vehicle + " exited toll " + name);
         semaphore.release(); // unlock
     }
 }
