@@ -54,6 +54,8 @@ public class FerryThread extends Thread
                 currentSide = (currentSide == Side.A) ? Side.B : Side.A;
                 Logger.ferryArrived(currentSide.name(), tripCount);
 
+                ferryControl.signalArrival();
+
                 // unloading phase
                 Logger.ferryUnloadingStarted(currentSide.name());
                 ferryControl.startUnloading();
