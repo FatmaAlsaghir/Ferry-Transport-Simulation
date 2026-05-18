@@ -74,13 +74,16 @@ public class VehicleThread extends Thread
 
                 Statistics.recordBoarding(queueEntryTime);
 
-                // WAIT until ferry arrives
-                ferryControl.waitForArrival();
+                // CHANGE 1: Pass vehicle to waitForArrival — new signature requires it
+                ferryControl.waitForArrival(this.vehicle);
 
                 // Switch side after arrival
                 Side otherSide = (currentSide == Side.A) ? Side.B : Side.A;
 
                 vehicle.setCurrentSide(otherSide);
+
+                // CHANGE 2: Notify ferry that this vehicle has finished unloading
+                ferryControl.vehicleUnloaded();
 
                 tripsComplete++;
 

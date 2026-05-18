@@ -54,14 +54,14 @@ public class FerryThread extends Thread
                 currentSide = (currentSide == Side.A) ? Side.B : Side.A;
                 Logger.ferryArrived(currentSide.name(), tripCount);
 
+                // signal arrival — vehicles on ferry will wake up
                 ferryControl.signalArrival();
 
-                // unloading phase
+                // unloading phase — wait for all vehicles to unload (Issue 6)
                 Logger.ferryUnloadingStarted(currentSide.name());
                 ferryControl.startUnloading();
-
-                int unloadDelay = 300 + ThreadLocalRandom.current().nextInt(700);
-                Thread.sleep(unloadDelay);
+                ferryControl.setVehicleCount(currentLoad);   // tell FerryControl how many must unload
+                ferryControl.waitForUnloadComplete();         // block until all vehicles unloaded
 
                 ferryControl.finishUnloading();
                 Logger.ferryUnloadingFinished(currentSide.name());
