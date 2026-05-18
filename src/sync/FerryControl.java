@@ -23,7 +23,7 @@ public class FerryControl {
     private boolean unloading = false;
     private boolean arrived = false;
 
-    // Vehicle requests boarding — FIFO fixed
+    // Vehicle requests boarding — FIFO fixed (Issue 1)
     public void requestBoarding(Vehicle vehicle, WaitingQueue queue) throws InterruptedException {
         lock.lock();
         try {
@@ -45,8 +45,9 @@ public class FerryControl {
         }
     }
 
-    // canFit — queue parameter removed
+    // canFit — queue parameter removed, null-check kept (Issue 1)
     private boolean canFit(Vehicle vehicle) {
+        if (vehicle == null) return false;
         return currentLoad + vehicle.getSize() <= MAX_CAPACITY;
     }
 
@@ -63,14 +64,13 @@ public class FerryControl {
         }
     }
 
-    // Departure conditions — updated to use new canFit signature
+    // Departure conditions — empty-ferry guard + fixed logic (Issue 2)
     private boolean shouldDepart(WaitingQueue queue) {
-        if (currentLoad == MAX_CAPACITY) return true;
-
-        if (queue.isEmpty()) return currentLoad > 0;
-
+        if (currentLoad == 0) return false;           // never depart empty
+        if (currentLoad == MAX_CAPACITY) return true; // full
+        if (queue.isEmpty()) return true;             // nobody left to board
         Vehicle next = queue.peek();
-        return next != null && !canFit(next);
+        return next != null && !canFit(next);         // next vehicle doesn't fit
     }
 
     // Vehicles wait until ferry arrives
