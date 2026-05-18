@@ -23,31 +23,30 @@ public class FerryControl {
     private boolean unloading = false;
     private boolean arrived = false;
 
-    // Vehicle requests boarding
+    // Vehicle requests boarding — FIFO fixed
     public void requestBoarding(Vehicle vehicle, WaitingQueue queue) throws InterruptedException {
         lock.lock();
         try {
-            // Wait until boarding is allowed and vehicle fits
-            while (!loading || unloading || !canFit(vehicle, queue)) {
+            while (!loading || unloading
+                    || !vehicle.equals(queue.peek()) // must be head of queue
+                    || !canFit(vehicle)) {           // must fit
                 canBoard.await();
             }
 
-            queue.dequeue(); // FIFO queue
+            queue.dequeue();
             currentLoad += vehicle.getSize();
 
-            // Boarding log
             Logger.vehicleBoarded(vehicle.toString(), currentLoad);
 
-            ferryReady.signal(); // notify ferry thread
+            ferryReady.signal();
 
         } finally {
             lock.unlock();
         }
     }
 
-    // Check capacity constraint
-    private boolean canFit(Vehicle vehicle, WaitingQueue queue) {
-        if (vehicle == null) return false;
+    // canFit — queue parameter removed
+    private boolean canFit(Vehicle vehicle) {
         return currentLoad + vehicle.getSize() <= MAX_CAPACITY;
     }
 
@@ -56,22 +55,22 @@ public class FerryControl {
         lock.lock();
         try {
             while (!shouldDepart(queue)) {
-                ferryReady.awaitNanos(1_000_000_000); // timeout avoids starvation
+                ferryReady.awaitNanos(1_000_000_000);
             }
-            loading = false; // stop boarding
+            loading = false;
         } finally {
             lock.unlock();
         }
     }
 
-    // Departure conditions
+    // Departure conditions — updated to use new canFit signature
     private boolean shouldDepart(WaitingQueue queue) {
         if (currentLoad == MAX_CAPACITY) return true;
 
         if (queue.isEmpty()) return currentLoad > 0;
 
         Vehicle next = queue.peek();
-        return next != null && !canFit(next, queue);
+        return next != null && !canFit(next);
     }
 
     // Vehicles wait until ferry arrives
@@ -106,7 +105,7 @@ public class FerryControl {
             unloading = false;
             arrived = false;
 
-            canBoard.signalAll(); // allow boarding again
+            canBoard.signalAll();
 
         } finally {
             lock.unlock();
