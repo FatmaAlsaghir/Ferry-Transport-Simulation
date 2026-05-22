@@ -23,6 +23,17 @@ public class Statistics {
     private static long simulationStartTime = -1;
     private static long simulationEndTime   = -1;
 
+    // ── Completed vehicle counter ─────────────────────────────────────
+    private static final AtomicInteger completedCount = new AtomicInteger(0);
+
+    public static void recordCompletion() {
+        completedCount.incrementAndGet();
+    }
+
+    public static int getCompletedCount() {
+        return completedCount.get();
+    }
+
     // ── Public API ────────────────────────────────────────────────────
 
     public static void recordSimulationStart() {
@@ -93,6 +104,8 @@ public class Statistics {
         } else {
             System.out.println("  Ferry utilization ratio : N/A");
         }
+
+        System.out.printf("  Vehicles completed      : %d%n", getCompletedCount());
 
         System.out.println("══════════════════════════════════════════");
     }

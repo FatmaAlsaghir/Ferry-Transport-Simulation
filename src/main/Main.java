@@ -35,6 +35,7 @@ public class Main {
 
         // Ferry starts from a random side
         Side ferryStart = random.nextBoolean() ? Side.A : Side.B;
+        Logger.log("Ferry starts on Side " + ferryStart.name());
         FerryThread ferryThread = new FerryThread(syncManager, ferryStart);
         ferryThread.setDaemon(true);
         ferryThread.start();
