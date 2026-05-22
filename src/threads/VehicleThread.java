@@ -1,28 +1,29 @@
 package threads;
 
+import core.WaitingQueue;
+import model.Vehicle;
+import model.Side;
+import sync.SyncManager;
 import core.TollBooth;
 import core.WaitingQueue;
-import model.Side;
-import model.Vehicle;
 import sync.FerryControl;
-import sync.SyncManager;
 import utils.Logger;
 import utils.Statistics;
-
 import java.util.concurrent.ThreadLocalRandom;
 
-public class VehicleThread extends Thread
-{
+public class VehicleThread extends Thread {
     private Vehicle vehicle;
     private SyncManager syncManager;
     private Side originalSide;
     private String vName;
 
-    public VehicleThread(Vehicle vehicle, SyncManager syncManager)
-    {
+    public VehicleThread(Vehicle vehicle, SyncManager syncManager) {
         this.vehicle = vehicle;
         this.syncManager = syncManager;
-        this.vName = vehicle.getType() + "-" + vehicle.getId();
+
+        // ISSUE 11 FIX: Correct the name format to "Car-1" [cite: 310, 311, 312, 313]
+        String raw = vehicle.getType().name();
+        this.vName = raw.charAt(0) + raw.substring(1).toLowerCase() + "-" + vehicle.getId();
 
         this.originalSide = (Math.random() > 0.5) ? Side.A : Side.B;
         this.vehicle.setCurrentSide(this.originalSide);
@@ -31,87 +32,65 @@ public class VehicleThread extends Thread
     }
 
     @Override
-    public void run()
-    {
-        try
-        {
+    public void run() {
+        try {
             boolean roundTripComplete = false;
-            int tripsComplete = 0;
+            int tripsCompleted = 0;
 
-            while(!roundTripComplete)
-            {
+            while (!roundTripComplete) {
                 Side currentSide = vehicle.getCurrentSide();
 
-                // Select toll booth
+                // ISSUE 7 FIX: Distribute vehicles across both toll booths [cite: 250, 251, 252, 253, 254]
                 TollBooth[] tolls = syncManager.getTolls(currentSide);
-                TollBooth chosenToll = tolls[0];
+                int boothIndex = vehicle.getId() % tolls.length;
+                TollBooth chosenToll = tolls[boothIndex];
+                String tollName = "Toll-" + (boothIndex + 1);
 
-                // Pass toll
-                Logger.vehicleEnteredToll(vName, "Toll-1", currentSide.name());
-
-                chosenToll.enter(this.vehicle);
+                Logger.vehicleEnteredToll(vName, tollName, currentSide.name());
+                chosenToll.enter(vehicle);
 
                 int tollDelay = 50 + ThreadLocalRandom.current().nextInt(200);
                 Thread.sleep(tollDelay);
 
-                chosenToll.exit(this.vehicle);
+                chosenToll.exit(vehicle);
+                Logger.vehicleExitedToll(vName, tollName, currentSide.name());
 
-                Logger.vehicleExitedToll(vName, "Toll-1", currentSide.name());
-
-                // Join queue
+                // Queue & Boarding
                 WaitingQueue queue = syncManager.getQueue(currentSide);
-
                 Logger.vehicleJoinedQueue(vName, currentSide.name());
-
                 long queueEntryTime = Statistics.recordQueueEntry();
+                queue.enqueue(vehicle);
 
-                queue.enqueue(this.vehicle);
-
-                // Request boarding
                 FerryControl ferryControl = syncManager.getFerryControl();
-
-                ferryControl.requestBoarding(this.vehicle, queue);
-
+                ferryControl.requestBoarding(vehicle, queue);
                 Statistics.recordBoarding(queueEntryTime);
 
-                // CHANGE 1: Pass vehicle to waitForArrival — new signature requires it
+                // ISSUE 9 FIX: Pass specific vehicle to waitForArrival [cite: 285, 286, 287]
                 ferryControl.waitForArrival(this.vehicle);
 
-                // Switch side after arrival
                 Side otherSide = (currentSide == Side.A) ? Side.B : Side.A;
-
                 vehicle.setCurrentSide(otherSide);
+                tripsCompleted++;
 
-                // CHANGE 2: Notify ferry that this vehicle has finished unloading
+                // ISSUE 10 FIX: Log unloaded FIRST, then signal ferry [cite: 296, 297, 298]
+                Logger.vehicleUnloaded(vName, otherSide.name());
                 ferryControl.vehicleUnloaded();
 
-                tripsComplete++;
-
-                Logger.vehicleUnloaded(vName, otherSide.name());
-
-                // Round trip completed
-                if(tripsComplete == 2 && vehicle.getCurrentSide() == originalSide)
-                {
+                // ISSUE 8 FIX: Safer round trip check [cite: 267, 270, 271, 272, 273, 274]
+                if (tripsCompleted >= 2 && vehicle.getCurrentSide().equals(originalSide)) {
                     roundTripComplete = true;
-
                     Logger.vehicleCompleted(vName);
-                }
-                else
-                {
+                    Statistics.recordCompletion(); // Member C is adding this
+                } else {
                     Logger.vehicleWaiting(vName, otherSide.name());
-
                     int returnDelay = 300 + ThreadLocalRandom.current().nextInt(700);
-
                     Thread.sleep(returnDelay);
-
                     Logger.vehicleReturning(vName, otherSide.name());
                 }
             }
-        }
-        catch(InterruptedException e)
-        {
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.err.println("Vehicle " + vehicle.getId() + " was interrupted.");
+            System.err.println("Vehicle " + vName + " was interrupted.");
         }
     }
 }

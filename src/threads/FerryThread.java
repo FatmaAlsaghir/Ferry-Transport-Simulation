@@ -1,84 +1,70 @@
 package threads;
 
-import core.WaitingQueue;
 import model.Side;
-import sync.FerryControl;
 import sync.SyncManager;
+import core.WaitingQueue;
+import sync.FerryControl;
 import utils.Logger;
 import utils.Statistics;
-
 import java.util.concurrent.ThreadLocalRandom;
 
-public class FerryThread extends Thread
-{
+public class FerryThread extends Thread {
     private SyncManager syncManager;
     private Side currentSide;
-    private boolean simulationRunning = true;
+
+    // ISSUE 13 FIX: Added volatile keyword [cite: 350, 351, 352]
+    private volatile boolean simulationRunning = true;
+
     private int tripCount = 0;
 
-    public FerryThread(SyncManager syncManager, Side startSide)
-    {
+    public FerryThread(SyncManager syncManager, Side startSide) {
         this.syncManager = syncManager;
         this.currentSide = startSide;
     }
 
     @Override
-    public void run()
-    {
-        try
-        {
+    public void run() {
+        try {
             FerryControl ferryControl = syncManager.getFerryControl();
 
-            while(simulationRunning)
-            {
+            while (simulationRunning) {
                 WaitingQueue queue = syncManager.getQueue(currentSide);
 
                 Logger.ferryLoadingStarted(currentSide.name());
-
-                // wait until departure conditions are met
                 ferryControl.waitForDeparture(queue);
 
-                // get current load from FerryControl
-                int currentLoad = ferryControl.getCurrentLoad();
-
                 tripCount++;
+                int currentLoad = ferryControl.getCurrentLoad();
 
                 Logger.ferryDeparted(currentSide.name(), currentLoad, tripCount);
                 Statistics.recordTrip(currentLoad);
 
-                // simulate travel
-                int tripDelay = 500 + ThreadLocalRandom.current().nextInt(1200);
-                Thread.sleep(tripDelay);
+                int travelTime = 800 + ThreadLocalRandom.current().nextInt(701);
+                Thread.sleep(travelTime);
 
-                // switch side
                 currentSide = (currentSide == Side.A) ? Side.B : Side.A;
+
+                // ISSUE 12 FIX: Real blocking unload gate [cite: 336, 337, 338, 339, 340, 341, 342, 343]
+                ferryControl.signalArrival(); // Member A is adding this
                 Logger.ferryArrived(currentSide.name(), tripCount);
-
-                // signal arrival — vehicles on ferry will wake up
-                ferryControl.signalArrival();
-
-                // unloading phase — wait for all vehicles to unload (Issue 6)
                 Logger.ferryUnloadingStarted(currentSide.name());
-                ferryControl.startUnloading();
-                ferryControl.setVehicleCount(currentLoad);   // tell FerryControl how many must unload
-                ferryControl.waitForUnloadComplete();         // block until all vehicles unloaded
 
+                ferryControl.startUnloading();
+                ferryControl.setVehicleCount(ferryControl.getBoardingCount()); // Tell control how many
+                ferryControl.waitForUnloadComplete(); // BLOCK until all exit
                 ferryControl.finishUnloading();
+
                 Logger.ferryUnloadingFinished(currentSide.name());
 
-                // prepare for next trip
                 ferryControl.resetAfterTrip();
             }
-        }
-        catch(InterruptedException e)
-        {
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             System.err.println("Ferry thread was interrupted.");
         }
     }
 
-    public void stopSimulation()
-    {
+    public void stopSimulation() {
         this.simulationRunning = false;
     }
 }
