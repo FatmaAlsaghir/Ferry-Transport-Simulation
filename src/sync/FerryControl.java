@@ -198,4 +198,13 @@ public class FerryControl {
             lock.unlock();
         }
     }
+    // Returns how many vehicles are currently on the ferry
+    public int getBoardingCount() {
+        lock.lock();
+        try {
+            return onFerry.size();
+        } finally {
+            lock.unlock();
+        }
+    }
 }

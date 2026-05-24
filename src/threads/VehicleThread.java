@@ -23,7 +23,7 @@ public class VehicleThread extends Thread {
 
         // ISSUE 11 FIX: Correct the name format to "Car-1" [cite: 310, 311, 312, 313]
         String raw = vehicle.getType().name();
-        this.vName = raw.charAt(0) + raw.substring(1).toLowerCase() + "-" + vehicle.getId();
+        this.vName = raw.charAt(0) + raw.substring(1).toLowerCase(java.util.Locale.ENGLISH) + "-" + vehicle.getId();
 
         this.originalSide = (Math.random() > 0.5) ? Side.A : Side.B;
         this.vehicle.setCurrentSide(this.originalSide);
