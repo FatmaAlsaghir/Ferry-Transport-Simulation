@@ -11,7 +11,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class FerryThread extends Thread {
 
-    private SyncManager syncManager;
+    private final SyncManager syncManager;
 
     private Side currentSide;
 
@@ -19,13 +19,8 @@ public class FerryThread extends Thread {
 
     private int tripCount = 0;
 
-    public FerryThread(
-            SyncManager syncManager,
-            Side startSide
-    ) {
-
+    public FerryThread(SyncManager syncManager, Side startSide) {
         this.syncManager = syncManager;
-
         this.currentSide = startSide;
     }
 
@@ -34,28 +29,26 @@ public class FerryThread extends Thread {
 
         try {
 
-            FerryControl ferryControl =
-                    syncManager.getFerryControl();
+            FerryControl ferryControl = syncManager.getFerryControl();
 
             while (simulationRunning) {
 
-                WaitingQueue queue =
-                        syncManager.getQueue(currentSide);
+                // Must return a DIFFERENT WaitingQueue instance per side.
+                // This is the fix point — if SyncManager returns one shared
+                // queue for both sides, the global FIFO bug lives there.
+                WaitingQueue queue = syncManager.getQueue(currentSide);
 
+                // Announce ferry is open for boarding on this side
+                Logger.ferryLoadingStarted(currentSide.name());
 
-                // loading phase
-                Logger.ferryLoadingStarted(
-                        currentSide.name()
-                );
-
+                // Blocks until departure condition is met.
+                // Must load ONLY from the passed queue — not from an
+                // internal global reference inside FerryControl.
                 ferryControl.waitForDeparture(queue);
 
-
-                // departure
+                // Departure
                 tripCount++;
-
-                int currentLoad =
-                        ferryControl.getCurrentLoad();
+                int currentLoad = ferryControl.getCurrentLoad();
 
                 Logger.ferryDeparted(
                         currentSide.name(),
@@ -65,77 +58,58 @@ public class FerryThread extends Thread {
 
                 Statistics.recordTrip(currentLoad);
 
-
-                // simulate travel
+                // Simulate crossing
                 int travelTime =
-                        800
-                                + ThreadLocalRandom.current()
-                                .nextInt(701);
+                        800 + ThreadLocalRandom.current().nextInt(701);
 
                 Thread.sleep(travelTime);
 
+                // Switch to opposite side
+                currentSide = (currentSide == Side.A) ? Side.B : Side.A;
 
-                // move to opposite side
-                currentSide =
-                        (currentSide == Side.A)
-                                ? Side.B
-                                : Side.A;
+                Logger.ferryArrived(currentSide.name(), tripCount);
 
+                // Signal which side ferry has arrived at so waiting
+                // vehicle threads can react correctly
+                ferryControl.signalArrival(currentSide);
 
-                // arrival
-                Logger.ferryArrived(
-                        currentSide.name(),
-                        tripCount
-                );
-
-
-                // FINAL FIX:
-                // signal actual arrival side
-                ferryControl.signalArrival(
-                        currentSide
-                );
-
-
-                // unloading phase
-                Logger.ferryUnloadingStarted(
-                        currentSide.name()
-                );
-
+                // Unloading phase — no boarding allowed during this
+                Logger.ferryUnloadingStarted(currentSide.name());
                 ferryControl.startUnloading();
 
+                // FIX: replaced the two-call race condition:
+                //   ferryControl.setVehicleCount(ferryControl.getBoardingCount())
+                //   ferryControl.waitForUnloadComplete()
+                // with a single atomic method that snapshots the boarding
+                // count and then waits — no window for a count change
+                // between the two calls.
+                // You must add this method to FerryControl.
+                ferryControl.snapshotBoardingCountAndWait();
 
-                // wait until all onboard vehicles unload
-                ferryControl.setVehicleCount(
-                        ferryControl.getBoardingCount()
-                );
-
-                ferryControl.waitForUnloadComplete();
-
-
-                // unloading complete
                 ferryControl.finishUnloading();
 
-                Logger.ferryUnloadingFinished(
-                        currentSide.name()
-                );
+                Logger.ferryUnloadingFinished(currentSide.name());
 
-
-                // prepare next trip
+                // Reset load counter and boarding state for next trip
                 ferryControl.resetAfterTrip();
             }
 
         } catch (InterruptedException e) {
-
             Thread.currentThread().interrupt();
-
-            System.err.println(
-                    "Ferry thread was interrupted."
-            );
+            // Only report if this was an unexpected interrupt,
+            // not a clean shutdown triggered by stopSimulation()
+            if (simulationRunning) {
+                System.err.println("Ferry thread interrupted unexpectedly.");
+            }
         }
     }
 
     public void stopSimulation() {
-
         simulationRunning = false;
+        // FIX: interrupt so the ferry wakes immediately if it is blocked
+        // inside waitForDeparture or Thread.sleep — without this,
+        // stopSimulation() sets the flag but the thread never sees it
+        // and hangs until the next natural wake-up
+        this.interrupt();
     }
 }
