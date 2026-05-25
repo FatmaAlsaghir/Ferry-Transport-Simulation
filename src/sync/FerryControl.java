@@ -17,7 +17,7 @@ public class FerryControl {
     private final Condition canBoard = lock.newCondition();
     private final Condition ferryReady = lock.newCondition();
     private final Condition arrivalCondition = lock.newCondition();
-    private final Condition unloadDone = lock.newCondition(); // Issue 6
+    private final Condition unloadDone = lock.newCondition();
 
     private int currentLoad = 0;
     private final int MAX_CAPACITY = 20;
@@ -26,22 +26,33 @@ public class FerryControl {
     private boolean unloading = false;
     private boolean arrived = false;
 
-    private int vehiclesToUnload = 0;                        // Issue 6
-    private final Set<Vehicle> onFerry = new HashSet<>();    // Issue 6
+    private int vehiclesToUnload = 0;
 
-    // Vehicle requests boarding — FIFO fixed (Issue 1)
-    public void requestBoarding(Vehicle vehicle, WaitingQueue queue) throws InterruptedException {
+    // vehicles currently on ferry
+    private final Set<Vehicle> onFerry = new HashSet<>();
+
+
+    // Vehicle requests boarding
+    public void requestBoarding(Vehicle vehicle, WaitingQueue queue)
+            throws InterruptedException {
+
         lock.lock();
+
         try {
-            while (!loading || unloading
-                    || !vehicle.equals(queue.peek()) // must be head of queue
-                    || !canFit(vehicle)) {           // must fit
+
+            while (!loading
+                    || unloading
+                    || !vehicle.equals(queue.peek())
+                    || !canFit(vehicle)) {
+
                 canBoard.await();
             }
 
             queue.dequeue();
+
             currentLoad += vehicle.getSize();
-            onFerry.add(vehicle);                            // Issue 6 — track boarded vehicles
+
+            onFerry.add(vehicle);
 
             Logger.vehicleBoarded(vehicle.toString(), currentLoad);
 
@@ -52,114 +63,219 @@ public class FerryControl {
         }
     }
 
-    // canFit — queue parameter removed, null-check kept (Issue 1)
+
+    // Checks if vehicle can fit
     private boolean canFit(Vehicle vehicle) {
-        if (vehicle == null) return false;
+
+        if (vehicle == null)
+            return false;
+
         return currentLoad + vehicle.getSize() <= MAX_CAPACITY;
     }
 
-    // Ferry waits until departure conditions are met — deadline + logging (Issue 6)
-    public void waitForDeparture(WaitingQueue queue) throws InterruptedException {
+
+    // Ferry waits until departure conditions are met
+    public void waitForDeparture(WaitingQueue queue)
+            throws InterruptedException {
+
         lock.lock();
+
         try {
+
             long deadline = System.nanoTime() + 3_000_000_000L;
+
             while (!shouldDepart(queue)) {
-                long rem = deadline - System.nanoTime();
-                if (rem <= 0) {
+
+                long remaining = deadline - System.nanoTime();
+
+                if (remaining <= 0) {
+
                     if (currentLoad > 0) {
-                        Logger.ferryDepartureReason("timeout — starvation prevention");
+
+                        Logger.ferryDepartureReason(
+                                "timeout — starvation prevention"
+                        );
+
                         break;
                     }
-                    deadline = System.nanoTime() + 3_000_000_000L; // reset if still empty
+
+                    // reset timeout if ferry still empty
+                    deadline = System.nanoTime() + 3_000_000_000L;
                 }
-                ferryReady.awaitNanos(Math.max(rem, 1));
+
+                ferryReady.awaitNanos(Math.max(remaining, 1));
             }
 
-            // Log departure reason
-            if (currentLoad == MAX_CAPACITY)
+
+            // departure reason logs
+            if (currentLoad == MAX_CAPACITY) {
+
                 Logger.ferryDepartureReason("ferry full");
-            else if (!queue.isEmpty() && queue.peek() != null && !canFit(queue.peek()))
-                Logger.ferryDepartureReason("next vehicle does not fit");
-            else if (queue.isEmpty() && currentLoad > 0)
+            }
+
+            else if (!queue.isEmpty()
+                    && queue.peek() != null
+                    && !canFit(queue.peek())) {
+
+                Logger.ferryDepartureReason(
+                        "next vehicle does not fit"
+                );
+            }
+
+            else if (queue.isEmpty()
+                    && currentLoad > 0
+                    && currentLoad < MAX_CAPACITY) {
+
                 Logger.ferryDepartureReason("queue empty");
+            }
 
             loading = false;
+
         } finally {
             lock.unlock();
         }
     }
 
-    // Departure conditions — empty-ferry guard + fixed logic (Issue 2)
+
+    // Departure conditions
     private boolean shouldDepart(WaitingQueue queue) {
-        if (currentLoad == 0) return false;           // never depart empty
-        if (currentLoad == MAX_CAPACITY) return true; // full
-        if (queue.isEmpty()) return true;             // nobody left to board
+
+        if (currentLoad == 0)
+            return false;
+
+        if (currentLoad == MAX_CAPACITY)
+            return true;
+
+        if (queue.isEmpty())
+            return true;
+
         Vehicle next = queue.peek();
-        return next != null && !canFit(next);         // next vehicle doesn't fit
+
+        return next != null && !canFit(next);
     }
 
-    // Vehicles wait until ferry arrives — per-vehicle tracking (Issue 6)
-    public void waitForArrival(Vehicle vehicle) throws InterruptedException {
+
+    // Vehicle waits until ferry arrives
+    public void waitForArrival(Vehicle vehicle)
+            throws InterruptedException {
+
         lock.lock();
+
         try {
-            while (!arrived || !onFerry.contains(vehicle))
+
+            while (!arrived || !onFerry.contains(vehicle)) {
+
                 arrivalCondition.await();
-            onFerry.remove(vehicle);
+            }
+
         } finally {
             lock.unlock();
         }
     }
+
 
     // Ferry signals arrival
     public void signalArrival() {
+
         lock.lock();
+
         try {
+
             arrived = true;
+
             arrivalCondition.signalAll();
+
         } finally {
             lock.unlock();
         }
     }
 
-    // Set how many vehicles need to unload (Issue 6)
+
+    // Remove vehicle from ferry after unloading
+    public void removeFromFerry(Vehicle vehicle) {
+
+        lock.lock();
+
+        try {
+
+            onFerry.remove(vehicle);
+
+        } finally {
+            lock.unlock();
+        }
+    }
+
+
+    // Set number of vehicles to unload
     public void setVehicleCount(int count) {
+
         lock.lock();
+
         try {
+
             vehiclesToUnload = count;
+
         } finally {
             lock.unlock();
         }
     }
 
-    // Called by each vehicle after unloading (Issue 6)
+
+    // Called after each vehicle unloads
     public void vehicleUnloaded() {
+
         lock.lock();
+
         try {
-            if (--vehiclesToUnload <= 0) unloadDone.signalAll();
+
+            vehiclesToUnload--;
+
+            if (vehiclesToUnload <= 0) {
+
+                unloadDone.signalAll();
+            }
+
         } finally {
             lock.unlock();
         }
     }
 
-    // Ferry waits until all vehicles have unloaded (Issue 6)
-    public void waitForUnloadComplete() throws InterruptedException {
+
+    // Ferry waits until unloading complete
+    public void waitForUnloadComplete()
+            throws InterruptedException {
+
         lock.lock();
+
         try {
-            while (vehiclesToUnload > 0) unloadDone.await();
+
+            while (vehiclesToUnload > 0) {
+
+                unloadDone.await();
+            }
+
         } finally {
             lock.unlock();
         }
     }
 
-    // Reset ferry for next trip — arrived reset first (Issue 3)
+
+    // Reset for next trip
     public void resetAfterTrip() {
+
         lock.lock();
+
         try {
-            arrived = false;      // MUST be first — prevents new waiters skipping wait
+
+            arrived = false;
+
             currentLoad = 0;
+
             loading = true;
+
             unloading = false;
-            vehiclesToUnload = 0; // Issue 6
+
+            vehiclesToUnload = 0;
 
             canBoard.signalAll();
 
@@ -167,42 +283,64 @@ public class FerryControl {
             lock.unlock();
         }
     }
+
 
     // Start unloading phase
     public void startUnloading() {
+
         lock.lock();
+
         try {
+
             unloading = true;
+
         } finally {
             lock.unlock();
         }
     }
+
 
     // Finish unloading phase
     public void finishUnloading() {
+
         lock.lock();
+
         try {
+
             unloading = false;
+
             canBoard.signalAll();
+
         } finally {
             lock.unlock();
         }
     }
 
-    // getCurrentLoad — synchronized to prevent stale reads (Issue 4)
+
+    // Thread-safe current load getter
     public int getCurrentLoad() {
+
         lock.lock();
+
         try {
+
             return currentLoad;
+
         } finally {
             lock.unlock();
         }
     }
-    // Returns how many vehicles are currently on the ferry
+
+
+    // Number of vehicles currently onboard
     public int getBoardingCount() {
+
         lock.lock();
+
         try {
+
             return onFerry.size();
+
         } finally {
             lock.unlock();
         }
