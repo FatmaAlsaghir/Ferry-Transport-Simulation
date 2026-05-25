@@ -15,29 +15,45 @@ import java.util.concurrent.ThreadLocalRandom;
 public class VehicleThread extends Thread {
 
     private Vehicle vehicle;
+
     private SyncManager syncManager;
+
     private Side originalSide;
+
     private String vName;
 
-    public VehicleThread(Vehicle vehicle, SyncManager syncManager) {
+    public VehicleThread(
+            Vehicle vehicle,
+            SyncManager syncManager
+    ) {
 
         this.vehicle = vehicle;
+
         this.syncManager = syncManager;
 
-        String raw = vehicle.getType().name();
+        String raw =
+                vehicle.getType().name();
 
         this.vName =
                 raw.charAt(0)
-                        + raw.substring(1).toLowerCase(Locale.ENGLISH)
+                        + raw.substring(1)
+                        .toLowerCase(Locale.ENGLISH)
                         + "-"
                         + vehicle.getId();
 
         this.originalSide =
-                (Math.random() > 0.5) ? Side.A : Side.B;
+                (Math.random() > 0.5)
+                        ? Side.A
+                        : Side.B;
 
-        this.vehicle.setCurrentSide(originalSide);
+        this.vehicle.setCurrentSide(
+                originalSide
+        );
 
-        Logger.vehicleCreated(vName, originalSide.name());
+        Logger.vehicleCreated(
+                vName,
+                originalSide.name()
+        );
     }
 
     @Override
@@ -51,7 +67,9 @@ public class VehicleThread extends Thread {
 
             while (!roundTripComplete) {
 
-                Side currentSide = vehicle.getCurrentSide();
+                Side currentSide =
+                        vehicle.getCurrentSide();
+
 
                 // select toll booth
                 TollBooth[] tolls =
@@ -77,7 +95,9 @@ public class VehicleThread extends Thread {
                 chosenToll.enter(vehicle);
 
                 int tollDelay =
-                        50 + ThreadLocalRandom.current().nextInt(200);
+                        50
+                                + ThreadLocalRandom.current()
+                                .nextInt(200);
 
                 Thread.sleep(tollDelay);
 
@@ -109,52 +129,65 @@ public class VehicleThread extends Thread {
                 FerryControl ferryControl =
                         syncManager.getFerryControl();
 
-                ferryControl.requestBoarding(vehicle, queue);
+                ferryControl.requestBoarding(
+                        vehicle,
+                        queue
+                );
 
-                Statistics.recordBoarding(queueEntryTime);
+                Statistics.recordBoarding(
+                        queueEntryTime
+                );
 
 
-                // wait for ferry arrival
-                ferryControl.waitForArrival(vehicle);
+                // wait for actual ferry arrival
+                ferryControl.waitForArrival(
+                        vehicle
+                );
 
 
-                // determine new side ONLY after arrival
-                Side newSide;
+                // FINAL FIX:
+                // use actual ferry arrival side
+                Side newSide =
+                        ferryControl.getArrivalSide();
 
-                if (currentSide == Side.A)
-                    newSide = Side.B;
-                else
-                    newSide = Side.A;
-
-                vehicle.setCurrentSide(newSide);
+                vehicle.setCurrentSide(
+                        newSide
+                );
 
                 tripsCompleted++;
 
 
-                // unloading log
+                // unloading
                 Logger.vehicleUnloaded(
                         vName,
                         newSide.name()
                 );
 
 
-                // remove from ferry + notify unload complete
-                ferryControl.removeFromFerry(vehicle);
+                // remove from ferry
+                ferryControl.removeFromFerry(
+                        vehicle
+                );
 
                 ferryControl.vehicleUnloaded();
 
 
                 // round trip complete
                 if (tripsCompleted >= 2
-                        && vehicle.getCurrentSide().equals(originalSide)) {
+                        && vehicle.getCurrentSide()
+                        .equals(originalSide)) {
 
                     roundTripComplete = true;
 
-                    Logger.vehicleCompleted(vName);
+                    Logger.vehicleCompleted(
+                            vName
+                    );
 
                     Statistics.recordCompletion();
 
-                } else {
+                }
+
+                else {
 
                     Logger.vehicleWaiting(
                             vName,
@@ -162,7 +195,9 @@ public class VehicleThread extends Thread {
                     );
 
                     int returnDelay =
-                            300 + ThreadLocalRandom.current().nextInt(700);
+                            300
+                                    + ThreadLocalRandom.current()
+                                    .nextInt(700);
 
                     Thread.sleep(returnDelay);
 
@@ -178,7 +213,9 @@ public class VehicleThread extends Thread {
             Thread.currentThread().interrupt();
 
             System.err.println(
-                    "Vehicle " + vName + " was interrupted."
+                    "Vehicle "
+                            + vName
+                            + " was interrupted."
             );
         }
     }

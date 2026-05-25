@@ -68,7 +68,9 @@ public class FerryThread extends Thread {
 
                 // simulate travel
                 int travelTime =
-                        800 + ThreadLocalRandom.current().nextInt(701);
+                        800
+                                + ThreadLocalRandom.current()
+                                .nextInt(701);
 
                 Thread.sleep(travelTime);
 
@@ -87,8 +89,11 @@ public class FerryThread extends Thread {
                 );
 
 
-                // allow vehicles to unload
-                ferryControl.signalArrival();
+                // FINAL FIX:
+                // signal actual arrival side
+                ferryControl.signalArrival(
+                        currentSide
+                );
 
 
                 // unloading phase
