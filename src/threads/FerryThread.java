@@ -77,9 +77,9 @@ public class FerryThread extends Thread {
                 Logger.ferryUnloadingStarted(currentSide.name());
                 ferryControl.startUnloading();
 
-                // FIX: replaced the two-call race condition:
-                //   ferryControl.setVehicleCount(ferryControl.getBoardingCount())
-                //   ferryControl.waitForUnloadComplete()
+                // replaced the two-call race condition:
+                // ferryControl.setVehicleCount(ferryControl.getBoardingCount())
+                // ferryControl.waitForUnloadComplete()
                 // with a single atomic method that snapshots the boarding
                 // count and then waits — no window for a count change
                 // between the two calls.
@@ -106,7 +106,7 @@ public class FerryThread extends Thread {
 
     public void stopSimulation() {
         simulationRunning = false;
-        // FIX: interrupt so the ferry wakes immediately if it is blocked
+        // interrupt so the ferry wakes immediately if it is blocked
         // inside waitForDeparture or Thread.sleep — without this,
         // stopSimulation() sets the flag but the thread never sees it
         // and hangs until the next natural wake-up

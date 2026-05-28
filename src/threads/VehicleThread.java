@@ -63,7 +63,7 @@ public class VehicleThread extends Thread {
                 TollBooth[] tolls =
                         syncManager.getTolls(currentSide);
 
-                // FIX: randomize booth selection instead of
+                // randomize booth selection instead of
                 // deterministic vehicle.getId() % length, which
                 // always sends even IDs to Toll-1 and odd to Toll-2
                 int boothIndex =
@@ -101,7 +101,7 @@ public class VehicleThread extends Thread {
                 WaitingQueue queue =
                         syncManager.getQueue(currentSide);
 
-                // FIX: enqueue the vehicle FIRST, then log and record
+                // enqueue the vehicle FIRST, then log and record
                 // stats. Previously the log and wait timer fired before
                 // the vehicle was actually in the queue, which caused
                 // incorrect wait time measurements and misleading logs.

@@ -29,7 +29,7 @@ public class FerryControl {
 
     private Side arrivalSide;
 
-    // FIX: track which queue the ferry is currently loading from.
+    // track which queue the ferry is currently loading from.
     // null means the ferry is not in a loading phase.
     private WaitingQueue currentLoadingQueue = null;
 
@@ -48,7 +48,7 @@ public class FerryControl {
 
         try {
 
-            // FIX: added `currentLoadingQueue != queue` as a guard.
+            // added `currentLoadingQueue != queue` as a guard.
             // Without this, vehicles from the wrong side woke on
             // canBoard.signalAll(), passed every other condition,
             // and boarded while the ferry was docked on the opposite
@@ -101,7 +101,7 @@ public class FerryControl {
 
         try {
 
-            // FIX: set the active loading queue so requestBoarding
+            // set the active loading queue so requestBoarding
             // knows which side's vehicles are allowed to board.
             // Then signal all so waiting vehicles re-evaluate their
             // condition immediately — correct-side vehicles unblock,
@@ -255,8 +255,8 @@ public class FerryControl {
     }
 
 
-    // FIX: replaces the two-call race condition
-    //   setVehicleCount(getBoardingCount()) + waitForUnloadComplete()
+    // replaces the two-call race condition
+    // setVehicleCount(getBoardingCount()) + waitForUnloadComplete()
     // Snapshots the boarding count and waits atomically under the
     // same lock acquisition — no window for the count to change
     // between reading and waiting.
